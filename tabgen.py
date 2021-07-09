@@ -217,7 +217,7 @@ class Tabgen(inkex.EffectExtension):
         currTabHt = tabht
         currTabAngle = taba
         testAngle = 1.0
-        testHt = currTabHt * 0.01
+        testHt = currTabHt * 0.001
         adjustTab = 0
         tabDone = False
         while not tabDone:
