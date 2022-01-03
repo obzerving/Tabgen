@@ -384,7 +384,7 @@ class Tabgen(inkex.EffectExtension):
             last_letter = 'Z'
             savid = elem.get_id()
             idmod = 0
-            for ptoken in elem.path: # For each point in the path
+            for ptoken in elem.path.to_absolute(): # For each point in the path
                 if ptoken.letter == 'M': # Starting point
                     # Hold this point in case we receive a Z
                     ptx1 = mx = ptoken.x
