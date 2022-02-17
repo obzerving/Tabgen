@@ -479,7 +479,7 @@ class Tabgen(inkex.EffectExtension):
                     self.drawline(str(dscore),'score'+str(pc),group,apath.style) # Output the scorelines separately
                 layer.append(group)
             else:
-                dprop = dprop + dscore
+                dprop = dscore + dprop
                 self.drawline(str(dprop),savid+'ms',layer,apath.style)
             pc += 1
 
