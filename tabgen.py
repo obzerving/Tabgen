@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 #
-# Copyright (C) [2021] [Joseph Zakar], [observing@gmail.com]
+# Copyright (C) [2022] [Joseph Zakar], [observing@gmail.com]
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 #
 """
 Given a closed path of straight lines, this program generates a paper model containing
-tabs and score lines for each straight edge.
+tabs and score lines for each straight edge marked by line paths of a specific color.
 """
 
 import inkex
@@ -30,12 +30,14 @@ import inspect
 from inkex import PathElement, Style
 from inkex.paths import Move, Line, ZoneClose, Path
 from inkex.elements._groups import Group
+from inkex.transforms import Vector2d
 
 class pathStruct(object):
     def __init__(self):
         self.id="path0000"
         self.path=Path()
         self.enclosed=False
+        self.tabmarker=False
         self.style = None
     def __str__(self):
         return self.path
@@ -79,6 +81,10 @@ class Tabgen(inkex.EffectExtension):
             help="Length of dashline in dimentional units (zero for solid line)")
         pars.add_argument("--tabsets", default="both",\
             help="Tab placement on polygons with cutouts")
+        pars.add_argument("--markercolor", type=str, dest="markercolor", default="#ff0000",\
+            help="Color of lines for marking tabs")
+        pars.add_argument("--tabmarker", type=inkex.Boolean, dest="tabmarker", default=False,\
+            help="Check to put tabs where there are lines of above color; uncheck for opposite")
         pars.add_argument("--unit", default="in",\
             help="Dimensional units of selected paths")
 
@@ -341,26 +347,50 @@ class Tabgen(inkex.EffectExtension):
             
         return tpt1,tpt2
 
+    def checkForTab(self, pt1, pt2, tablist, marker):
+        # if marker is true, we want to return true if we find the pts in the tablist
+        for tabpts in tablist:
+            if math.isclose(pt1.x,tabpts[0].x,abs_tol=0.001) and math.isclose(pt1.y,tabpts[0].y,abs_tol=0.001):
+                if math.isclose(pt2.x,tabpts[1].x,abs_tol=0.001) and math.isclose(pt2.y,tabpts[1].y,abs_tol=0.001):
+                    return marker
+            if math.isclose(pt1.x,tabpts[1].x,abs_tol=0.001) and math.isclose(pt1.y,tabpts[1].y,abs_tol=0.001):
+                if math.isclose(pt2.x,tabpts[0].x,abs_tol=0.001) and math.isclose(pt2.y,tabpts[0].y,abs_tol=0.001):
+                    return marker
+        return (not marker)
+                    
+                    
     def effect(self):
         scale = self.svg.unittouu('1'+self.options.unit)
         layer = self.svg.get_current_layer()
         tab_angle = float(self.options.tabangle)
         tab_height = float(self.options.tabheight) * scale
         dashlength = float(self.options.dashlength) * scale
+        tabmarker = self.options.tabmarker
+        markercolor = str(self.options.markercolor)
         tabsets = self.options.tabsets
+        tablist = [] # contains pairs of points to put (or not put) tabs
         npaths = []
         savid = ''
         elems = []
         pc = 0
         sstr = None
         for selem in self.svg.selection.filter(PathElement):
-            elems.append(copy.deepcopy(selem))
+            if 'style' in selem.attrib:
+                lsstr = selem.attrib['style'].split(';')
+                for stoken in range(len(lsstr)):
+                    if lsstr[stoken].startswith('stroke:'):
+                        swt = lsstr[stoken].split(':')[1]
+                        if swt == markercolor:
+                            # stroke is markercolor. move element to the front of the list
+                            elems.insert(0,copy.deepcopy(selem))
+                            selem.delete() # and get rid of the original
+                        else:
+                            elems.append(copy.deepcopy(selem))
         if len(elems) == 0:
             raise inkex.AbortExtension("Nothing selected")
         for elem in elems:
             escale = 1.0
             npaths.clear()
-            #inkex.utils.debug(elem.attrib)
             if 'transform' in elem.attrib:
                 transforms = elem.attrib['transform'].split()
                 for tf in transforms:
@@ -399,16 +429,24 @@ class Tabgen(inkex.EffectExtension):
                     '''
                     npath = pathStruct()
                     npath.enclosed = False
-                    if idmod > 0:
-                        npath.id = elem.get_id()+"-"+str(idmod)
-                    else:
-                        npath.id = elem.get_id()
                     if sstr == None:
                         if 'style' in elem.attrib:
+                            lsstr = elem.attrib['style'].split(';')
+                            for stoken in range(len(lsstr)):
+                                if lsstr[stoken].startswith('stroke:'):
+                                    swt = lsstr[stoken].split(':')[1]
+                                    if swt == markercolor:
+                                        # stroke is markercolor. This is tab marker
+                                        npath.tabmarker = True
                             npath.style = elem.attrib['style']
                     else:
                         npath.style = sstr
-                    idmod += 1
+                    if not npath.tabmarker: # tabmarkers don't get an id
+                        if idmod > 0:
+                            npath.id = elem.get_id()+"-"+str(idmod)
+                        else:
+                            npath.id = elem.get_id()
+                        idmod += 1
                     npath.path.append(Move(ptx1,pty1))
                 else:
                     if last_letter != 'M':
@@ -430,8 +468,33 @@ class Tabgen(inkex.EffectExtension):
                         raise inkex.AbortExtension("Unrecognized path command {0}".format(ptoken.letter))
                     npath.path.append(Line(ptx2,pty2))
                     if ptoken.letter == 'Z' or ((ptx2 == mx) and (pty2 == my)):
-                        npaths.append(npath)
+                        if npath.style != None:
+                            if npath.tabmarker:
+                                # add its points to tab list
+                                    for npts in range(len(npath.path)-1):
+                                        tablist.append([npath.path[npts], npath.path[npts+1]])
+                                    # don't need this path anymore so delete it
+                                    elem.delete()
+                                    npath = None
+                            else:
+                                npaths.append(npath)
+                                npath = None
+                        else:
+                            npaths.append(npath)
+                            npath = None
                 last_letter = ptoken.letter
+            # finished reading in the path
+            if npath != None: # Was this path not closed?
+                if npath.style != None:
+                    if npath.tabmarker:
+                        # add its points to tab list
+                        for npts in range(len(npath.path)-1):
+                            tablist.append([npath.path[npts], npath.path[npts+1]])
+                        # don't need this path anymore so delete it
+                        elem.delete()
+                        npath = None
+                    else:
+                        raise inkex.AbortExtension("Only tab markers can be open paths")
             # check for cutouts
             if idmod > 1:
                 for apath in npaths: # We test these paths to see if they are fully enclosed
@@ -439,49 +502,53 @@ class Tabgen(inkex.EffectExtension):
                         if apath.id != bpath.id:
                             if self.pathInsidePath(bpath.path, apath.path):
                                 apath.enclosed = True
-            # add tabs to current path(s)
-            dsub = Path() # Used for building sub-paths
-            dprop = Path() # Used for building the main path
-            dscore = Path() # Used for building dashlines
-            for apath in npaths:
-                mpath = Path()
-                mpath.append(Move(apath.path[0].x,apath.path[0].y)) # init output path with first point of input path
-                for ptn in range(len(apath.path)-1):
-                    if (tabsets == 'both') or (((tabsets == 'inside') and (apath.enclosed)) or ((tabsets == 'outside') and (not apath.enclosed))):
-                        tabpt1, tabpt2 = self.makeTab(apath, apath.path[ptn], apath.path[ptn+1], tab_height, tab_angle)
-                        mpath.append(tabpt1)
-                        mpath.append(tabpt2)
-                        dscore = dscore + self.makescore(apath.path[ptn], apath.path[ptn+1],dashlength)
-                    mpath.append(apath.path[ptn+1])
-                if apath.id == elem.get_id():
-                    for nodes in range(len(mpath)):
-                        if nodes == 0:
-                            dprop.append(Move(mpath[nodes].x,mpath[nodes].y)) # This is the main path, which should appear first
-                        else:
-                            dprop.append(Line(mpath[nodes].x,mpath[nodes].y))
-                    # and close the path
-                    dprop.append(ZoneClose())
+            if len(npaths) > 0:
+                # add tabs to current path(s)
+                dsub = Path() # Used for building sub-paths
+                dprop = Path() # Used for building the main path
+                dscore = Path() # Used for building dashlines
+                dstyle = None
+                for apath in npaths:
+                    dstyle = apath.style
+                    mpath = Path()
+                    mpath.append(Move(apath.path[0].x,apath.path[0].y)) # init output path with first point of input path
+                    for ptn in range(len(apath.path)-1):
+                        if (tabsets == 'both') or (((tabsets == 'inside') and (apath.enclosed)) or ((tabsets == 'outside') and (not apath.enclosed))):
+                            if self.checkForTab(apath.path[ptn],apath.path[ptn+1],tablist,tabmarker):
+                                tabpt1, tabpt2 = self.makeTab(apath, apath.path[ptn], apath.path[ptn+1], tab_height, tab_angle)
+                                mpath.append(tabpt1)
+                                mpath.append(tabpt2)
+                                dscore = dscore + self.makescore(apath.path[ptn], apath.path[ptn+1],dashlength)
+                        mpath.append(apath.path[ptn+1])
+                    if apath.id == elem.get_id():
+                        for nodes in range(len(mpath)):
+                            if nodes == 0:
+                                dprop.append(Move(mpath[nodes].x,mpath[nodes].y)) # This is the main path, which should appear first
+                            else:
+                                dprop.append(Line(mpath[nodes].x,mpath[nodes].y))
+                        # and close the path
+                        dprop.append(ZoneClose())
+                    else:
+                        for nodes in range(len(mpath)):
+                            if nodes == 0:
+                                dsub.append(Move(mpath[nodes].x,mpath[nodes].y)) # This is the sub path, which should appear after the main one
+                            else:
+                                dsub.append(Line(mpath[nodes].x,mpath[nodes].y))
+                        # and close the path
+                        dsub.append(ZoneClose())
+                dprop = dprop + dsub # combine all the paths
+                if math.isclose(dashlength, 0.0):
+                    # lump together all the score lines
+                    group = Group()
+                    group.label = 'group'+str(pc)+'ms'
+                    self.drawline(str(dprop),'model'+str(pc),group,dstyle) # Output the model
+                    if dscore != '':
+                        self.drawline(str(dscore),'score'+str(pc),group,dstyle) # Output the scorelines separately
+                    layer.append(group)
                 else:
-                    for nodes in range(len(mpath)):
-                        if nodes == 0:
-                            dsub.append(Move(mpath[nodes].x,mpath[nodes].y)) # This is the main path, which should appear first
-                        else:
-                            dsub.append(Line(mpath[nodes].x,mpath[nodes].y))
-                    # and close the path
-                    dsub.append(ZoneClose())
-            dprop = dprop + dsub # combine all the paths
-            if math.isclose(dashlength, 0.0):
-                # lump together all the score lines
-                group = Group()
-                group.label = 'group'+str(pc)+'ms'
-                self.drawline(str(dprop),'model'+str(pc),group,apath.style) # Output the model
-                if dscore != '':
-                    self.drawline(str(dscore),'score'+str(pc),group,apath.style) # Output the scorelines separately
-                layer.append(group)
-            else:
-                dprop = dscore + dprop
-                self.drawline(str(dprop),savid+'ms',layer,apath.style)
-            pc += 1
+                    dprop = dscore + dprop
+                    self.drawline(str(dprop),savid+'ms',layer,dstyle)
+                pc += 1
 
 if __name__ == '__main__':
     Tabgen().run()
