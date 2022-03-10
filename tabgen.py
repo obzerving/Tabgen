@@ -448,7 +448,7 @@ class Tabgen(inkex.EffectExtension):
                             npath.id = elem.get_id()
                         idmod += 1
                     npath.path.append(Move(ptx1,pty1))
-                else:
+                elif npath != None: # This condition is part of a workaround described further down
                     if last_letter != 'M':
                         ptx1 = ptx2
                         pty1 = pty2
@@ -482,6 +482,11 @@ class Tabgen(inkex.EffectExtension):
                         else:
                             npaths.append(npath)
                             npath = None
+                else:
+                    # We could have ended up here if the original input path's last point was equal to
+                    # its first point and the next path command was a 'z'. This is a workaround for
+                    # what I think is an improperly closed path.
+                    pass
                 last_letter = ptoken.letter
             # finished reading in the path
             if npath != None: # Was this path not closed?
