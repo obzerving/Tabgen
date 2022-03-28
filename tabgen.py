@@ -375,6 +375,7 @@ class Tabgen(inkex.EffectExtension):
         pc = 0
         sstr = None
         for selem in self.svg.selection.filter(PathElement):
+            copyflag = False
             if 'style' in selem.attrib:
                 lsstr = selem.attrib['style'].split(';')
                 for stoken in range(len(lsstr)):
@@ -386,6 +387,12 @@ class Tabgen(inkex.EffectExtension):
                             selem.delete() # and get rid of the original
                         else:
                             elems.append(copy.deepcopy(selem))
+                        copyflag = True
+            else: # no style property; just copy it
+                elems.append(copy.deepcopy(selem))
+                copyflag = True
+            if not copyflag:
+                elems.append(copy.deepcopy(selem))
         if len(elems) == 0:
             raise inkex.AbortExtension("Nothing selected")
         for elem in elems:
@@ -398,6 +405,7 @@ class Tabgen(inkex.EffectExtension):
                         escale = float(tf.split('(')[1].split(')')[0])
                 if 'style' in elem.attrib:
                     lsstr = elem.attrib['style'].split(';')
+                    strokeflag = False
                     for stoken in range(len(lsstr)):
                         if lsstr[stoken].startswith('stroke-width'):
                             swt = lsstr[stoken].split(':')[1]
@@ -409,6 +417,10 @@ class Tabgen(inkex.EffectExtension):
                             if not swt[2:].isalpha(): # is value expressed in units (e.g. px)?
                                 swf = str(float(swt)*escale) # no. scale it
                                 lsstr[stoken] = lsstr[stoken].replace(swt, swf)
+                        if lsstr[stoken].startswith('stroke'):
+                            strokeflag = True
+                    if not strokeflag:
+                        lsstr.append('stroke:none')
                     sstr = ";".join(lsstr)
                 else:
                     sstr = None
