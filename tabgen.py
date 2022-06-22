@@ -81,6 +81,8 @@ class Tabgen(inkex.EffectExtension):
             help="Length of dashline in dimentional units (zero for solid line)")
         pars.add_argument("--tabsets", default="both",\
             help="Tab placement on polygons with cutouts")
+        pars.add_argument("--dashcolor", type=str, dest="dashcolor", default="#00ff00",\
+            help="Color of scorelines when solid")
         pars.add_argument("--markercolor", type=str, dest="markercolor", default="#ff0000",\
             help="Color of lines for marking tabs")
         pars.add_argument("--tabmarker", type=inkex.Boolean, dest="tabmarker", default=False,\
@@ -367,6 +369,7 @@ class Tabgen(inkex.EffectExtension):
         dashlength = float(self.options.dashlength) * scale
         tabmarker = self.options.tabmarker
         markercolor = str(self.options.markercolor)
+        dashcolor = str(self.options.dashcolor)
         tabsets = self.options.tabsets
         tablist = [] # contains pairs of points to put (or not put) tabs
         npaths = []
@@ -392,7 +395,7 @@ class Tabgen(inkex.EffectExtension):
                 elems.append(copy.deepcopy(selem))
                 copyflag = True
             if not copyflag:
-                elems.append(copy.deepcopy(selem))
+                elems.append(copy.deepcopy(selem))  
         if len(elems) == 0:
             raise inkex.AbortExtension("Nothing selected")
         for elem in elems:
@@ -560,7 +563,20 @@ class Tabgen(inkex.EffectExtension):
                     group.label = 'group'+str(pc)+'ms'
                     self.drawline(str(dprop),'model'+str(pc),group,dstyle) # Output the model
                     if dscore != '':
-                        self.drawline(str(dscore),'score'+str(pc),group,dstyle) # Output the scorelines separately
+                        if dstyle == None:
+                            dlstyle = str(Style({'stroke':'#00ff00','stroke-width':'0.25','fill':'#eeeeee'}))
+                        else:
+                            strokeflag = False
+                            lsstr = dstyle.split(';')
+                            for stoken in range(len(lsstr)):
+                                if lsstr[stoken].startswith('stroke:'):
+                                    swt = lsstr[stoken].split(':')[1]
+                                    lsstr[stoken] = lsstr[stoken].replace(swt, dashcolor)
+                                    strokeflag = True
+                            if not strokeflag:
+                                lsstr.append('stroke:'+dashcolor)
+                            dlstyle = ";".join(lsstr)
+                        self.drawline(str(dscore),'score'+str(pc),group,dlstyle) # Output the scorelines separately
                     layer.append(group)
                 else:
                     dprop = dscore + dprop
