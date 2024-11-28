@@ -3,6 +3,8 @@
 
 Given a closed path of straight lines, this program generates a paper model of tabs and score lines for each straight edge.
 
+UPDATE: THIS EXTENSION IS CURRENTLY BROKEN UNDER VERSION 1.4. I HAVE PLACED A VERSION OF THIS EXTENSION THAT APPEARS TO WORK (BUT HAS NOT BEEN FULLY TESTED) IN THE beta FOLDER. I AM INTERESTED IN ANY PROBLEMS YOU FIND WITH IT AND HOW IT WORKS WITH VERSIONS 1.1 TO 1.3.
+
 Installing:
  
 Copy tabgen.inx and tabgen.py into your Inkscape user extensions directory. Where is that? Open Inkscape and go to the System section of the Preferences menu (Edit --> Preferences --> System). You will find a User extensions item containing the path to your user extensions directory.
@@ -15,4 +17,4 @@ In addition, the extension has been updated to allow a color to be selected for 
 
 Note:
 
-This extension (for Inkscape version 1.1.) is functional, but not bulletproof, so be mindful of the input constraints in the usage document.
+This extension (for Inkscape version 1.1 to 1.3.) is functional, but not bulletproof, so be mindful of the input constraints in the usage document.
