@@ -176,15 +176,19 @@ class Tabgen(inkex.EffectExtension):
             else:
                 #inkex.utils.debug("Draw sloping dashline")
                 if pt1.y > pt2.y:
-                    apt1.x = pt1.x
-                    apt1.y = pt1.y
-                    apt2.x = pt2.x
-                    apt2.y = pt2.y
+                    apt1 = Line(pt1.x,pt1.y)
+                    #apt1.x = pt1.x
+                    #apt1.y = pt1.y
+                    apt2 = Line(pt2.x,pt2.y)
+                    #apt2.x = pt2.x
+                    #apt2.y = pt2.y
                 else:
-                    apt1.x = pt2.x
-                    apt1.y = pt2.y
-                    apt2.x = pt1.x
-                    apt2.y = pt1.y
+                    apt1 = Line(pt2.x,pt2.y)
+                    #apt1.x = pt2.x
+                    #apt1.y = pt2.y
+                    apt2 = Line(pt1.x,pt1.y)
+                    #apt2.x = pt1.x
+                    #apt2.y = pt1.y
                 m = (apt1.y-apt2.y)/(apt1.x-apt2.x)
                 theta = math.atan(m)
                 msign = (m>0) - (m<0)
